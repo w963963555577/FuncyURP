@@ -207,15 +207,7 @@
     {
         #if !defined(_MAIN_LIGHT_SHADOWS) || defined(_RECEIVE_SHADOWS_OFF)
             return 1.0h;
-        #endif
-        
-        #if defined(SHADOWS_SHADOWMASK) && defined(LIGHTMAP_ON)
-            int chanel = _AdditionalLightsSpotDir[lightIndex].w;
-            if (chanel >= 1 && chanel <= 4)
-                return shadowmask[chanel - 1];
-            else
-            return 1.0f;
-        #endif
+        #endif       
         
         #if SHADOWS_SCREEN
             return SampleScreenSpaceShadowmap(shadowCoord);
