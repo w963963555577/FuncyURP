@@ -554,7 +554,7 @@
             uint lightsCount = GetAdditionalLightsCount();
             for (uint lightIndex = 0u; lightIndex < lightsCount; ++ lightIndex)
             {
-                Light light = GetAdditionalLight(lightIndex, positionWS);
+                Light light = GetAdditionalLight(lightIndex, positionWS,float4(0,0,0,0));
                 half3 lightColor = light.color * light.distanceAttenuation;
                 vertexLightColor += LightingLambert(lightColor, light.direction, normalWS);
             }
