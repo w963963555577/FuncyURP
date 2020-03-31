@@ -1046,7 +1046,7 @@ namespace UnityEditor.Rendering.Universal
     }
 
     [ScriptableRenderPipelineExtension(typeof(UniversalRenderPipelineAsset))]
-    class UniversalRenderPipelineCameraContextualMenu : IRemoveAdditionalDataContextualMenu<Camera>
+    class UniversalRenderPipelineCameraContextualMenu 
     {
         //The call is delayed to the dispatcher to solve conflict with other SRP
         public void RemoveComponent(Camera camera)
