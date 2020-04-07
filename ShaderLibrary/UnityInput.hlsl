@@ -7,7 +7,7 @@
 #define UNITY_STEREO_INSTANCING_ENABLED
 #endif
 
-#if defined(STEREO_MULTIVIEW_ON) && (defined(SHADER_API_GLES3) || defined(SHADER_API_GLCORE)) && !(defined(SHADER_API_SWITCH))
+#if defined(STEREO_MULTIVIEW_ON) && (defined(SHADER_API_GLES3) || defined(SHADER_API_GLCORE) || defined(SHADER_API_VULKAN)) && !(defined(SHADER_API_SWITCH))
     #define UNITY_STEREO_MULTIVIEW_ENABLED
 #endif
 
@@ -208,7 +208,7 @@ TEXTURE2D(unity_LightmapInd);
 
 // We can have shadowMask only if we have lightmap, so no sampler
 TEXTURE2D(unity_ShadowMask);
-SAMPLER(samplerunity_ShadowMask);
+
 // ----------------------------------------------------------------------------
 
 // TODO: all affine matrices should be 3x4.
