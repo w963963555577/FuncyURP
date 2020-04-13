@@ -38,6 +38,7 @@ Shader "Universal Render Pipeline/Terrain/Lit"
         [HideInInspector] _TerrainHolesTexture ("Holes Map (RGB)", 2D) = "white" { }
         
         [ToggleUI] _EnableInstancedPerPixelNormal ("Enable Instanced per-pixel normal", Float) = 1.0
+        [Toggle(_EnableDepth)] _EnableDepth ("Enable Depth", Float) = 1.0
     }
     
     HLSLINCLUDE
@@ -48,7 +49,7 @@ Shader "Universal Render Pipeline/Terrain/Lit"
     
     SubShader
     {
-        Tags { "Queue" = "Geometry+549" "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "False" }
+        Tags { "Queue" = "Geometry" "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "False" }
         
         Pass
         {
@@ -62,8 +63,12 @@ Shader "Universal Render Pipeline/Terrain/Lit"
             #pragma prefer_hlslcc gles
             #pragma exclude_renderers d3d11_9x
             #pragma target 3.0
-            #define REQUIRE_DEPTH_TEXTURE 1
             
+            #pragma shader_feature_local _EnableDepth
+
+            #if _EnableDepth
+                #define REQUIRE_DEPTH_TEXTURE 1                        
+            #endif
             #pragma vertex SplatmapVert
             #pragma fragment SplatmapFragment
             
@@ -94,7 +99,7 @@ Shader "Universal Render Pipeline/Terrain/Lit"
             #pragma shader_feature_local _NORMALMAP
             #pragma shader_feature_local _MASKMAP
             // Sample normal in pixel shader when doing instancing
-            #pragma shader_feature_local _TERRAIN_INSTANCED_PERPIXEL_NORMAL 
+            #pragma shader_feature_local _TERRAIN_INSTANCED_PERPIXEL_NORMAL
             
             #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/TerrainLitInput.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/TerrainLitPasses.hlsl"

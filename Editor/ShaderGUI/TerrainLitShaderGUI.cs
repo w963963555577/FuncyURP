@@ -15,6 +15,7 @@ namespace UnityEditor.Rendering.Universal
             public readonly GUIContent enableHeightBlend = new GUIContent("Enable Height-based Blend", "Blend terrain layers based on height values.");
             public readonly GUIContent heightTransition = new GUIContent("Height Transition", "Size in world units of the smooth transition between layers.");
             public readonly GUIContent enableInstancedPerPixelNormal = new GUIContent("Enable Per-pixel Normal", "Enable per-pixel normal when the terrain uses instanced rendering.");
+            public readonly GUIContent enableDepth = new GUIContent("Enable Depth", "Enable Depth texture support with soft attached geomertry.");
 
             public readonly GUIContent diffuseTexture = new GUIContent("Diffuse");
             public readonly GUIContent colorTint = new GUIContent("Color Tint");
@@ -51,6 +52,9 @@ namespace UnityEditor.Rendering.Universal
         MaterialProperty heightTransition = null;
         const string kHeightTransition = "_HeightTransition";
 
+        MaterialProperty depthTexture = null;
+        const string kdepthTexture = "_EnableDepth";
+
         // Per-pixel Normal (while instancing)
         MaterialProperty enableInstancedPerPixelNormal = null;
         const string kEnableInstancedPerPixelNormal = "_EnableInstancedPerPixelNormal";
@@ -77,6 +81,7 @@ namespace UnityEditor.Rendering.Universal
             enableHeightBlend = FindProperty(kEnableHeightBlend, props, false);
             heightTransition = FindProperty(kHeightTransition, props, false);
             enableInstancedPerPixelNormal = FindProperty(kEnableInstancedPerPixelNormal, props, false);
+            depthTexture = FindProperty(kdepthTexture,props,false);
         }
 
         static public void SetupMaterialKeywords(Material material)
@@ -103,7 +108,7 @@ namespace UnityEditor.Rendering.Universal
                 throw new ArgumentNullException("materialEditorIn");
 
             FindMaterialProperties(properties);
-
+            
             bool optionsChanged = false;
             EditorGUI.BeginChangeCheck();
             {
@@ -121,12 +126,13 @@ namespace UnityEditor.Rendering.Universal
                     EditorGUI.indentLevel--;
                 }
 
+                
                 EditorGUILayout.Space();
             }
             if (EditorGUI.EndChangeCheck())
             {
                 optionsChanged = true;
-            }
+            } 
 
             bool enablePerPixelNormalChanged = false;
             
@@ -141,12 +147,36 @@ namespace UnityEditor.Rendering.Universal
                 EditorGUI.indentLevel--;
             }
 
-            if (optionsChanged || enablePerPixelNormalChanged)
+            bool enableDepthChanged = false;
+
+            // Since Instanced Per-pixel normal is actually dependent on instancing enabled or not, it is not
+            // important to check it in the GUI.  The shader will make sure it is enabled/disabled properly.s
+            if (depthTexture != null)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUI.BeginChangeCheck();
+                materialEditorIn.ShaderProperty(depthTexture, styles.enableDepth);
+                
+                enableDepthChanged = EditorGUI.EndChangeCheck();
+                EditorGUI.indentLevel--;
+            }
+
+
+            if (optionsChanged || enablePerPixelNormalChanged || enableDepthChanged)
             {
                 foreach (var obj in materialEditorIn.targets)
                 {
-                    SetupMaterialKeywords((Material)obj);
-                }
+                    var mat = (Material)obj;
+                    if (depthTexture.floatValue == 1.0f)
+                    {
+                        mat.renderQueue = 2549;
+                    }
+                    else
+                    {
+                        mat.renderQueue = 2000;
+                    }
+                    SetupMaterialKeywords(mat);
+                                    }
             }
 
             // We should always do this call at the end
