@@ -29,6 +29,8 @@ float4 _TerrainHeightmapScale;       // float4(hmScale.x, hmScale.y / (float)(kM
 int _ObjectId;
 int _PassValue;
 #endif
+
+
 CBUFFER_END
 
 TEXTURE2D(_Control);    SAMPLER(sampler_Control);
@@ -58,6 +60,7 @@ CBUFFER_START(UnityPerMaterial)
 float4 _MainTex_ST;
 half4 _BaseColor;
 half _Cutoff;
+half4 _LightMapShadowHardware;
 CBUFFER_END
 
 TEXTURE2D(_MetallicTex);   SAMPLER(sampler_MetallicTex);

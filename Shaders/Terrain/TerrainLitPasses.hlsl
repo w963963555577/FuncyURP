@@ -66,6 +66,25 @@
         UNITY_VERTEX_OUTPUT_STEREO
     };
     
+    half3 RGB2HSV(half3 c)
+    {
+        float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+        float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
+        float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+        
+        float d = q.x - min(q.w, q.y);
+        float e = 1.0e-10;
+        return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+    }
+    
+    half3 HSV2RGB(half3 c)
+    {
+        float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+        float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
+        return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
+    }
+    
+    
     void InitializeInputData(Varyings IN, half3 normalTS, out InputData input)
     {
         input = (InputData)0;
@@ -109,7 +128,12 @@
         input.fogCoord = IN.fogFactorAndVertexLight.x;
         input.vertexLighting = IN.fogFactorAndVertexLight.yzw;
         
+        half4 ctrl = _LightMapShadowHardware;
+        
         input.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, SH, input.normalWS);
+        half3 hsvShadow = RGB2HSV(input.bakedGI);
+        hsvShadow.b = max(smoothstep(ctrl.x, ctrl.y, hsvShadow.b), 1.0 - hsvShadow.b);
+        input.bakedGI = HSV2RGB(hsvShadow);
     }
     
     #ifndef TERRAIN_SPLAT_BASEPASS
@@ -381,21 +405,21 @@
             half alpha = weight;
         #endif
         
-        InputData inputData; 
+        InputData inputData;
         InitializeInputData(IN, normalTS, inputData);
         half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), smoothness, occlusion, /* emission */ half3(0, 0, 0), alpha);
         
         SplatmapFinalColor(color, inputData.fogCoord);
-
+        
         #if defined(REQUIRE_DEPTH_TEXTURE)
             float4 screenPos = IN.screenPos;
             float4 ase_screenPosNorm = screenPos / screenPos.w;
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
             float screenDepth16 = LinearEyeDepth(SampleSceneDepth(ase_screenPosNorm.xy), _ZBufferParams);
             float distanceDepth16 = abs((screenDepth16 - LinearEyeDepth(ase_screenPosNorm.z, _ZBufferParams)) * (2.0));
-            color.a = saturate(distanceDepth16); 
+            color.a = saturate(distanceDepth16);
         #endif
-
+        
         return half4(color.rgb, color.a);
     }
     

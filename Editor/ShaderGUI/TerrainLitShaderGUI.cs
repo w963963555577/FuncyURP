@@ -16,6 +16,7 @@ namespace UnityEditor.Rendering.Universal
             public readonly GUIContent heightTransition = new GUIContent("Height Transition", "Size in world units of the smooth transition between layers.");
             public readonly GUIContent enableInstancedPerPixelNormal = new GUIContent("Enable Per-pixel Normal", "Enable per-pixel normal when the terrain uses instanced rendering.");
             public readonly GUIContent enableDepth = new GUIContent("Enable Depth", "Enable Depth texture support with soft attached geomertry.");
+            public readonly GUIContent lightMapShadowHard = new GUIContent("LightMap Shadow Hardware", "");
 
             public readonly GUIContent diffuseTexture = new GUIContent("Diffuse");
             public readonly GUIContent colorTint = new GUIContent("Color Tint");
@@ -55,6 +56,9 @@ namespace UnityEditor.Rendering.Universal
         MaterialProperty depthTexture = null;
         const string kdepthTexture = "_EnableDepth";
 
+        MaterialProperty lightMapShadowHardware = null;
+        const string klightMapShadowHardware = "_LightMapShadowHardware";
+
         // Per-pixel Normal (while instancing)
         MaterialProperty enableInstancedPerPixelNormal = null;
         const string kEnableInstancedPerPixelNormal = "_EnableInstancedPerPixelNormal";
@@ -82,6 +86,7 @@ namespace UnityEditor.Rendering.Universal
             heightTransition = FindProperty(kHeightTransition, props, false);
             enableInstancedPerPixelNormal = FindProperty(kEnableInstancedPerPixelNormal, props, false);
             depthTexture = FindProperty(kdepthTexture,props,false);
+            lightMapShadowHardware = FindProperty(klightMapShadowHardware, props, false);
         }
 
         static public void SetupMaterialKeywords(Material material)
@@ -157,6 +162,16 @@ namespace UnityEditor.Rendering.Universal
                 EditorGUI.BeginChangeCheck();
                 materialEditorIn.ShaderProperty(depthTexture, styles.enableDepth);
                 
+                enableDepthChanged = EditorGUI.EndChangeCheck();
+                EditorGUI.indentLevel--;
+            }
+
+            if (lightMapShadowHardware != null)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUI.BeginChangeCheck();
+                materialEditorIn.ShaderProperty(lightMapShadowHardware, styles.lightMapShadowHard);
+
                 enableDepthChanged = EditorGUI.EndChangeCheck();
                 EditorGUI.indentLevel--;
             }
