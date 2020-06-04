@@ -463,22 +463,21 @@
         
         InputData inputData;
         half bakedGIArea;
+        
         InitializeInputDataFromCustomShadow(IN, normalTS, bakedGIArea, inputData);
         half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), smoothness, occlusion, /* emission */ half3(0, 0, 0), alpha);
         
         #if defined(REQUIRE_DEPTH_TEXTURE)
+            half4 ctrl = _LightMapShadowHardware;
             float4 screenPos = IN.screenPos;
             float4 ase_screenPosNorm = screenPos / screenPos.w;
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
             float screenDepth16 = LinearEyeDepth(SampleSceneDepth(ase_screenPosNorm.xy), _ZBufferParams);
             float distanceDepth16 = abs((screenDepth16 - LinearEyeDepth(ase_screenPosNorm.z, _ZBufferParams)) * (2.0));
-            color.a = max(saturate(distanceDepth16), 1.0 -bakedGIArea);
-            
+            color.a = smoothstep(ctrl.z, ctrl.w, saturate(distanceDepth16));
         #endif
         
         SplatmapFinalColor(color, inputData.fogCoord);
-        
-        
         
         return half4(color.rgb, color.a);
     }

@@ -40,7 +40,7 @@ Shader "Universal Render Pipeline/Terrain/Lit"
         [ToggleUI] _EnableInstancedPerPixelNormal ("Enable Instanced per-pixel normal", Float) = 1.0
         [Toggle(_EnableDepth)] _EnableDepth ("Enable Depth", Float) = 1.0
         
-        _LightMapShadowHardware ("LightMap Shadow Hardware", Vector) = (0, 1.0, 0, 0)
+        _LightMapShadowHardware ("LightMap Shadow Hardware", Vector) = (0, 1.0, 0, 0.5)
     }
     
     HLSLINCLUDE
