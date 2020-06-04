@@ -470,7 +470,10 @@
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
             float screenDepth16 = LinearEyeDepth(SampleSceneDepth(ase_screenPosNorm.xy), _ZBufferParams);
             float distanceDepth16 = abs((screenDepth16 - LinearEyeDepth(ase_screenPosNorm.z, _ZBufferParams)) * (2.0));
-            color.a = max(smoothstep(ctrl.z, ctrl.w, saturate(distanceDepth16)), 1.0 - bakedGIArea);
+            float smDisDepth = smoothstep(ctrl.z, ctrl.w, saturate(distanceDepth16));
+            bakedGIArea = 1.0 - bakedGIArea;
+            bakedGIArea *= smoothstep(0., 0.2, smDisDepth);
+            color.a = max(smDisDepth, bakedGIArea);
         #endif
         return half4(color.rgb, color.a);
     }
