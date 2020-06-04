@@ -133,7 +133,61 @@
         input.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, SH, input.normalWS);
         half3 hsvShadow = RGB2HSV(input.bakedGI);
         hsvShadow.b = max(smoothstep(ctrl.x, ctrl.y, hsvShadow.b), 1.0 - hsvShadow.b);
-        input.bakedGI = HSV2RGB(hsvShadow);
+        half3 finalShadow = HSV2RGB(hsvShadow);
+        input.bakedGI = lerp(_SubtractiveShadowColor.rgb, finalShadow, smoothstep(0, 1, hsvShadow.b));
+    }
+    
+    void InitializeInputDataFromCustomShadow(Varyings IN, half3 normalTS, out half bakedGIArea, out InputData input)
+    {
+        input = (InputData)0;
+        
+        input.positionWS = IN.positionWS;
+        half3 SH = half3(0, 0, 0);
+        
+        #if defined(_NORMALMAP) && !defined(ENABLE_TERRAIN_PERPIXEL_NORMAL)
+            half3 viewDirWS = half3(IN.normal.w, IN.tangent.w, IN.bitangent.w);
+            input.normalWS = TransformTangentToWorld(normalTS, half3x3(-IN.tangent.xyz, IN.bitangent.xyz, IN.normal.xyz));
+            SH = SampleSH(input.normalWS.xyz);
+        #elif defined(ENABLE_TERRAIN_PERPIXEL_NORMAL)
+            half3 viewDirWS = IN.viewDir;
+            float2 sampleCoords = (IN.uvMainAndLM.xy / _TerrainHeightmapRecipSize.zw + 0.5f) * _TerrainHeightmapRecipSize.xy;
+            half3 normalWS = TransformObjectToWorldNormal(normalize(SAMPLE_TEXTURE2D(_TerrainNormalmapTexture, sampler_TerrainNormalmapTexture, sampleCoords).rgb * 2 - 1));
+            half3 tangentWS = cross(GetObjectToWorldMatrix()._13_23_33, normalWS);
+            input.normalWS = TransformTangentToWorld(normalTS, half3x3(-tangentWS, cross(normalWS, tangentWS), normalWS));
+            SH = SampleSH(input.normalWS.xyz);
+        #else
+            half3 viewDirWS = IN.viewDir;
+            input.normalWS = IN.normal;
+            SH = IN.vertexSH;
+        #endif
+        
+        #if SHADER_HINT_NICE_QUALITY
+            viewDirWS = SafeNormalize(viewDirWS);
+        #endif
+        
+        input.normalWS = NormalizeNormalPerPixel(input.normalWS);
+        
+        input.viewDirectionWS = viewDirWS;
+        
+        #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
+            input.shadowCoord = input.shadowCoord;
+        #elif defined(MAIN_LIGHT_CALCULATE_SHADOWS)
+            input.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
+        #else
+            input.shadowCoord = float4(0, 0, 0, 0);
+        #endif
+        
+        input.fogCoord = IN.fogFactorAndVertexLight.x;
+        input.vertexLighting = IN.fogFactorAndVertexLight.yzw;
+        
+        half4 ctrl = _LightMapShadowHardware;
+        
+        input.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, SH, input.normalWS);
+        half3 hsvShadow = RGB2HSV(input.bakedGI);
+        hsvShadow.b = max(smoothstep(ctrl.x, ctrl.y, hsvShadow.b), 1.0 - hsvShadow.b);
+        half3 finalShadow = HSV2RGB(hsvShadow);
+        bakedGIArea = smoothstep(0, 1, hsvShadow.b);
+        input.bakedGI = lerp(_SubtractiveShadowColor.rgb, finalShadow, bakedGIArea);
     }
     
     #ifndef TERRAIN_SPLAT_BASEPASS
@@ -405,11 +459,12 @@
             half alpha = weight;
         #endif
         
-        InputData inputData;
-        InitializeInputData(IN, normalTS, inputData);
-        half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), smoothness, occlusion, /* emission */ half3(0, 0, 0), alpha);
         
-        SplatmapFinalColor(color, inputData.fogCoord);
+        
+        InputData inputData;
+        half bakedGIArea;
+        InitializeInputDataFromCustomShadow(IN, normalTS, bakedGIArea, inputData);
+        half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), smoothness, occlusion, /* emission */ half3(0, 0, 0), alpha);
         
         #if defined(REQUIRE_DEPTH_TEXTURE)
             float4 screenPos = IN.screenPos;
@@ -417,8 +472,13 @@
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
             float screenDepth16 = LinearEyeDepth(SampleSceneDepth(ase_screenPosNorm.xy), _ZBufferParams);
             float distanceDepth16 = abs((screenDepth16 - LinearEyeDepth(ase_screenPosNorm.z, _ZBufferParams)) * (2.0));
-            color.a = saturate(distanceDepth16);
+            color.a = max(saturate(distanceDepth16), 1.0 -bakedGIArea);
+            
         #endif
+        
+        SplatmapFinalColor(color, inputData.fogCoord);
+        
+        
         
         return half4(color.rgb, color.a);
     }
