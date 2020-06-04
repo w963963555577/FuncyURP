@@ -459,7 +459,7 @@
         half bakedGIArea;
         
         InitializeInputDataFromCustomShadow(IN, normalTS, bakedGIArea, inputData);
-        half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), smoothness, occlusion, /* emission */ half3(0, 0, 0), alpha);
+        half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h),0.0 /*smoothness*/, occlusion, /* emission */ half3(0, 0, 0), alpha);
         
         SplatmapFinalColor(color, inputData.fogCoord);
         
