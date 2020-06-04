@@ -128,13 +128,7 @@
         input.fogCoord = IN.fogFactorAndVertexLight.x;
         input.vertexLighting = IN.fogFactorAndVertexLight.yzw;
         
-        half4 ctrl = _LightMapShadowHardware;
-        
         input.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, SH, input.normalWS);
-        half3 hsvShadow = RGB2HSV(input.bakedGI);
-        hsvShadow.b = max(smoothstep(ctrl.x, ctrl.y, hsvShadow.b), 1.0 - hsvShadow.b);
-        half3 finalShadow = HSV2RGB(hsvShadow);
-        input.bakedGI = lerp(_SubtractiveShadowColor.rgb, finalShadow, smoothstep(0, 1, hsvShadow.b));
     }
     
     void InitializeInputDataFromCustomShadow(Varyings IN, half3 normalTS, out half bakedGIArea, out InputData input)
@@ -467,6 +461,8 @@
         InitializeInputDataFromCustomShadow(IN, normalTS, bakedGIArea, inputData);
         half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), smoothness, occlusion, /* emission */ half3(0, 0, 0), alpha);
         
+        SplatmapFinalColor(color, inputData.fogCoord);
+        
         #if defined(REQUIRE_DEPTH_TEXTURE)
             half4 ctrl = _LightMapShadowHardware;
             float4 screenPos = IN.screenPos;
@@ -474,11 +470,8 @@
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
             float screenDepth16 = LinearEyeDepth(SampleSceneDepth(ase_screenPosNorm.xy), _ZBufferParams);
             float distanceDepth16 = abs((screenDepth16 - LinearEyeDepth(ase_screenPosNorm.z, _ZBufferParams)) * (2.0));
-            color.a = smoothstep(ctrl.z, ctrl.w, saturate(distanceDepth16));
+            color.a = max(smoothstep(ctrl.z, ctrl.w, saturate(distanceDepth16)), 1.0 - bakedGIArea);
         #endif
-        
-        SplatmapFinalColor(color, inputData.fogCoord);
-        
         return half4(color.rgb, color.a);
     }
     
