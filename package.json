@@ -17,12 +17,9 @@
     "render",
     "pipeline"
   ],
-  "upmCi": {
-    "footprint": "93c4f5c0be133b606484e9ea13c72f75905412b2"
-  },
   "repository": {
-    "url": "https://github.com/Unity-Technologies/Graphics.git",
     "type": "git",
-    "revision": "4a05fbb56133219b3a85350c132d096c5e39561e"
+    "url": "https://github.com/Unity-Technologies/ScriptableRenderPipeline.git",
+    "revision": "c1466d5b3b8b160f1072619b7be0b9202b3387c2"
   }
 }
