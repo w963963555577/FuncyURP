@@ -65,9 +65,7 @@ Shader "Universal Render Pipeline/Lit"
         //  Forward pass. Shades all light in a single pass. GI + emission + Fog
         Pass
         {
-            // Lightmode matches the ShaderPassName set in UniversalRenderPipeline.cs. SRPDefaultUnlit and passes with
-            // no LightMode tag are also rendered by Universal Render Pipeline
-            Name "ForwardLit"
+            Name "StandardLit"
             Tags { "LightMode" = "UniversalForward" }
             
             Blend[_SrcBlend][_DstBlend]
