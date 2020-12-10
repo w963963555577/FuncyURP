@@ -59,31 +59,12 @@
         #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
             float4 shadowCoord: TEXCOORD8;
         #endif
+        float4 clipPos: SV_POSITION;
         #if defined(REQUIRE_DEPTH_TEXTURE)
             float4 screenPos: TEXCOORD9;
         #endif
-        float4 clipPos: SV_POSITION;
         UNITY_VERTEX_OUTPUT_STEREO
     };
-    
-    half3 RGB2HSV(half3 c)
-    {
-        float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-        float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
-        float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
-        
-        float d = q.x - min(q.w, q.y);
-        float e = 1.0e-10;
-        return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
-    }
-    
-    half3 HSV2RGB(half3 c)
-    {
-        float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-        float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
-        return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
-    }
-    
     
     void InitializeInputData(Varyings IN, half3 normalTS, out InputData input)
     {
@@ -131,99 +112,16 @@
         input.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, SH, input.normalWS);
     }
     
-    void InitializeInputDataFromCustomShadow(Varyings IN, half3 normalTS, out half bakedGIArea, out InputData input)
-    {
-        input = (InputData)0;
-        
-        input.positionWS = IN.positionWS;
-        half3 SH = half3(0, 0, 0);
-        
-        #if defined(_NORMALMAP) && !defined(ENABLE_TERRAIN_PERPIXEL_NORMAL)
-            half3 viewDirWS = half3(IN.normal.w, IN.tangent.w, IN.bitangent.w);
-            input.normalWS = TransformTangentToWorld(normalTS, half3x3(-IN.tangent.xyz, IN.bitangent.xyz, IN.normal.xyz));
-            SH = SampleSH(input.normalWS.xyz);
-        #elif defined(ENABLE_TERRAIN_PERPIXEL_NORMAL)
-            half3 viewDirWS = IN.viewDir;
-            float2 sampleCoords = (IN.uvMainAndLM.xy / _TerrainHeightmapRecipSize.zw + 0.5f) * _TerrainHeightmapRecipSize.xy;
-            half3 normalWS = TransformObjectToWorldNormal(normalize(SAMPLE_TEXTURE2D(_TerrainNormalmapTexture, sampler_TerrainNormalmapTexture, sampleCoords).rgb * 2 - 1));
-            half3 tangentWS = cross(GetObjectToWorldMatrix()._13_23_33, normalWS);
-            input.normalWS = TransformTangentToWorld(normalTS, half3x3(-tangentWS, cross(normalWS, tangentWS), normalWS));
-            SH = SampleSH(input.normalWS.xyz);
-        #else
-            half3 viewDirWS = IN.viewDir;
-            input.normalWS = IN.normal;
-            SH = IN.vertexSH;
-        #endif
-        
-        #if SHADER_HINT_NICE_QUALITY
-            viewDirWS = SafeNormalize(viewDirWS);
-        #endif
-        
-        input.normalWS = NormalizeNormalPerPixel(input.normalWS);
-        
-        input.viewDirectionWS = viewDirWS;
-        
-        #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
-            input.shadowCoord = input.shadowCoord;
-        #elif defined(MAIN_LIGHT_CALCULATE_SHADOWS)
-            input.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
-        #else
-            input.shadowCoord = float4(0, 0, 0, 0);
-        #endif
-        
-        input.fogCoord = IN.fogFactorAndVertexLight.x;
-        input.vertexLighting = IN.fogFactorAndVertexLight.yzw;
-        
-        half4 ctrl = _LightMapShadowHardware;
-        
-        input.bakedGI = SAMPLE_GI(IN.uvMainAndLM.zw, SH, input.normalWS);
-        half3 hsvShadow = RGB2HSV(input.bakedGI);
-        hsvShadow.b = max(smoothstep(ctrl.x, ctrl.y, hsvShadow.b), 1.0 - hsvShadow.b);
-        half3 finalShadow = HSV2RGB(hsvShadow);
-        bakedGIArea = smoothstep(0, 1, hsvShadow.b);
-        input.bakedGI = lerp(_SubtractiveShadowColor.rgb, finalShadow, bakedGIArea);
-    }
-    
     #ifndef TERRAIN_SPLAT_BASEPASS
-        float4 hash4(float2 p)
-        {
-            return frac(sin(float4(1.0 + dot(p, float2(37.0, 17.0)),
-            2.0 + dot(p, float2(11.0, 47.0)),
-            3.0 + dot(p, float2(41.0, 29.0)),
-            4.0 + dot(p, float2(23.0, 31.0)))) * 103.0);
-        }
-        half4 TextureNoTile(Texture2D < float4 > map, in SamplerState state, in float2 uv)
-        {
-            float2 p = floor(uv);
-            float2 f = frac(uv);
-            
-            // voronoi contribution
-            float4 va = 0.0;
-            float wt = 0.0;
-            for (int j = -1; j <= 1; j ++)
-            for (int i = -1; i <= 1; i ++)
-            {
-                float2 g = float2(i, j);
-                float4 o = hash4(p + g);
-                float2 r = g - f + o.xy;
-                float d = dot(r, r);
-                float w = exp(-5.0 * d);
-                float4 c = SAMPLE_TEXTURE2D(map, state, uv + o.zw);
-                va += w * c;
-                wt += w;
-            }
-            
-            // normalization
-            return va / wt;
-        }
+        
         void SplatmapMix(float4 uvMainAndLM, float4 uvSplat01, float4 uvSplat23, inout half4 splatControl, out half weight, out half4 mixedDiffuse, out half4 defaultSmoothness, inout half3 mixedNormal)
         {
             half4 diffAlbedo[4];
             
-            diffAlbedo[0] = TextureNoTile(_Splat0, sampler_Splat0, uvSplat01.xy);
-            diffAlbedo[1] = TextureNoTile(_Splat1, sampler_Splat0, uvSplat01.zw);
-            diffAlbedo[2] = TextureNoTile(_Splat2, sampler_Splat0, uvSplat23.xy);
-            diffAlbedo[3] = TextureNoTile(_Splat3, sampler_Splat0, uvSplat23.zw);
+            diffAlbedo[0] = SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uvSplat01.xy);
+            diffAlbedo[1] = SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uvSplat01.zw);
+            diffAlbedo[2] = SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uvSplat23.xy);
+            diffAlbedo[3] = SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uvSplat23.zw);
             
             // This might be a bit of a gamble -- the assumption here is that if the diffuseMap has no
             // alpha channel, then diffAlbedo[n].a = 1.0 (and _DiffuseHasAlphaN = 0.0)
@@ -396,7 +294,6 @@
         #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
             o.shadowCoord = GetShadowCoord(Attributes);
         #endif
-        
         #if defined(REQUIRE_DEPTH_TEXTURE)
             o.screenPos = ComputeScreenPos(Attributes.positionCS);
         #endif
@@ -439,7 +336,7 @@
         half3 normalTS = half3(0.0h, 0.0h, 1.0h);
         #ifdef TERRAIN_SPLAT_BASEPASS
             half3 albedo = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uvMainAndLM.xy).rgb;
-            half smoothness = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uvMainAndLM.xy).a;
+            half smoothness = /*SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, IN.uvMainAndLM.xy).a*/0.0;
             half metallic = SAMPLE_TEXTURE2D(_MetallicTex, sampler_MetallicTex, IN.uvMainAndLM.xy).r;
             half alpha = 1;
             half occlusion = 1;
@@ -470,7 +367,7 @@
             
             half4 maskSmoothness = half4(masks[0].a, masks[1].a, masks[2].a, masks[3].a);
             defaultSmoothness = lerp(defaultSmoothness, maskSmoothness, hasMask);
-            half smoothness = dot(splatControl, defaultSmoothness);
+            half smoothness = /*dot(splatControl, defaultSmoothness)*/0.0;
             
             half4 maskMetallic = half4(masks[0].r, masks[1].r, masks[2].r, masks[3].r);
             defaultMetallic = lerp(defaultMetallic, maskMetallic, hasMask);
@@ -483,13 +380,9 @@
             half alpha = weight;
         #endif
         
-        
-        
         InputData inputData;
-        half bakedGIArea;
-        
-        InitializeInputDataFromCustomShadow(IN, normalTS, bakedGIArea, inputData);
-        half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), 0.0 /*smoothness*/, occlusion, /* emission */ half3(0, 0, 0), alpha);
+        InitializeInputData(IN, normalTS, inputData);
+        half4 color = UniversalFragmentPBR(inputData, albedo, metallic, /* specular */ half3(0.0h, 0.0h, 0.0h), smoothness, occlusion, /* emission */ half3(0, 0, 0), alpha);
         
         SplatmapFinalColor(color, inputData.fogCoord);
         
@@ -501,10 +394,10 @@
             float screenDepth16 = LinearEyeDepth(SampleSceneDepth(ase_screenPosNorm.xy), _ZBufferParams);
             float distanceDepth16 = abs((screenDepth16 - LinearEyeDepth(ase_screenPosNorm.z, _ZBufferParams)) * (2.0));
             float smDisDepth = smoothstep(ctrl.z, ctrl.w, saturate(distanceDepth16));
-            bakedGIArea = 1.0 - bakedGIArea;
-            bakedGIArea *= smoothstep(0., 0.2, smDisDepth);
-            color.a = max(smDisDepth, bakedGIArea);
+            
+            color.a = smDisDepth;
         #endif
+        
         return half4(color.rgb, color.a);
     }
     
@@ -517,10 +410,10 @@
     {
         float4 position: POSITION;
         float3 normalOS: NORMAL;
-        UNITY_VERTEX_INPUT_INSTANCE_ID
         #ifdef _ALPHATEST_ON
             float2 texcoord: TEXCOORD0;
         #endif
+        UNITY_VERTEX_INPUT_INSTANCE_ID
     };
     
     struct VaryingsLean
@@ -529,6 +422,7 @@
         #ifdef _ALPHATEST_ON
             float2 texcoord: TEXCOORD0;
         #endif
+        UNITY_VERTEX_OUTPUT_STEREO
     };
     
     VaryingsLean ShadowPassVertex(AttributesLean v)
@@ -571,6 +465,7 @@
     {
         VaryingsLean o = (VaryingsLean)0;
         UNITY_SETUP_INSTANCE_ID(v);
+        UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
         TerrainInstancing(v.position, v.normalOS);
         o.clipPos = TransformObjectToHClip(v.position.xyz);
         #ifdef _ALPHATEST_ON
