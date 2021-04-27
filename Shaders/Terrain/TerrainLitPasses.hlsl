@@ -248,6 +248,10 @@
     ///////////////////////////////////////////////////////////////////////////////
     //                  Vertex and Fragment functions                            //
     ///////////////////////////////////////////////////////////////////////////////
+    #if defined(REQUIRE_DEPTH_TEXTURE)
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl"
+    #endif
     
     // Used in Standard Terrain shader
     Varyings SplatmapVert(Attributes v)
@@ -295,7 +299,7 @@
             o.shadowCoord = GetShadowCoord(Attributes);
         #endif
         #if defined(REQUIRE_DEPTH_TEXTURE)
-            o.screenPos = ComputeScreenPos(Attributes.positionCS);
+            o.screenPos = ComputeScreenPos(Attributes.positionCS, _ProjectionParams.x);
         #endif
         return o;
     }
@@ -323,9 +327,7 @@
         masks[3] *= _MaskMapRemapScale3.rgba;
         masks[3] += _MaskMapRemapOffset3.rgba;
     }
-    #if defined(REQUIRE_DEPTH_TEXTURE)
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-    #endif
+    
     // Used in Standard Terrain shader
     half4 SplatmapFragment(Varyings IN): SV_TARGET
     {
@@ -391,9 +393,9 @@
             float4 screenPos = IN.screenPos;
             float4 ase_screenPosNorm = screenPos / screenPos.w;
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
-            float screenDepth16 = LinearEyeDepth(SampleSceneDepth(ase_screenPosNorm.xy), _ZBufferParams);
-            float distanceDepth16 = abs((screenDepth16 - LinearEyeDepth(ase_screenPosNorm.z, _ZBufferParams)) * (2.0));
-            float smDisDepth = smoothstep(ctrl.z, ctrl.w, saturate(distanceDepth16));
+            float screenDepth16 = LinearEyeDepth(SHADERGRAPH_SAMPLE_SCENE_DEPTH(ase_screenPosNorm.xy), _ZBufferParams) - screenPos.w;
+            
+            float smDisDepth = smoothstep(ctrl.z, ctrl.w, screenDepth16); 
             
             color.a = smDisDepth;
         #endif
