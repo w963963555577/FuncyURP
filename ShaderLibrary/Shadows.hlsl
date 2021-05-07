@@ -139,7 +139,7 @@
     real SampleShadowmapFiltered(TEXTURE2D_SHADOW_PARAM(ShadowMap, sampler_ShadowMap), float4 shadowCoord, ShadowSamplingData samplingData)
     {
         real attenuation = 0.;
-        /*
+        
         #if defined(SHADER_API_MOBILE) || defined(SHADER_API_SWITCH)
             // 4-tap hardware comparison
             real4 attenuation4;
@@ -163,7 +163,7 @@
             attenuation += fetchesWeights[7] * SAMPLE_TEXTURE2D_SHADOW(ShadowMap, sampler_ShadowMap, float3(fetchesUV[7].xy, shadowCoord.z));
             attenuation += fetchesWeights[8] * SAMPLE_TEXTURE2D_SHADOW(ShadowMap, sampler_ShadowMap, float3(fetchesUV[8].xy, shadowCoord.z));
         #endif
-        */
+        /*
         float fetchesWeights[9];
         float2 fetchesUV[9];
         
@@ -176,7 +176,7 @@
         attenuation += (fetchesWeights[0] + fetchesWeights[1] + fetchesWeights[2]) * sample1;
         attenuation += (fetchesWeights[3] + fetchesWeights[4] + fetchesWeights[5]) * sample4;
         attenuation += (fetchesWeights[6] + fetchesWeights[7] + fetchesWeights[8]) * sample8;
-        
+        */
         return attenuation;
     }
     
