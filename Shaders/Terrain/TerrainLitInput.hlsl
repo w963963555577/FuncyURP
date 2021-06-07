@@ -55,7 +55,7 @@ TEXTURE2D(_Mask3);
 
 TEXTURE2D(_MainTex);            SAMPLER(sampler_MainTex);
 TEXTURE2D(_SpecGlossMap);       SAMPLER(sampler_SpecGlossMap);
-
+#include "Packages/com.zd.lwrp.funcy/ShaderLibrary/GlobalFog.hlsl"
 CBUFFER_START(UnityPerMaterial)
 float4 _MainTex_ST;
 half4 _BaseColor;

@@ -399,7 +399,9 @@
             
             color.a = smDisDepth;
         #endif
-        
+
+        color = MixGlobalFog(color, IN.positionWS);
+
         return half4(color.rgb, color.a);
     }
     
