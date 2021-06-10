@@ -113,15 +113,45 @@
     }
     
     #ifndef TERRAIN_SPLAT_BASEPASS
-        
+        float4 hash4(float2 p)
+        {
+            return frac(sin(float4(1.0 + dot(p, float2(37.0, 17.0)),
+            2.0 + dot(p, float2(11.0, 47.0)),
+            3.0 + dot(p, float2(41.0, 29.0)),
+            4.0 + dot(p, float2(23.0, 31.0)))) * 103.0);
+        }
+        half4 TextureNoTile(Texture2D < float4 > map, in SamplerState state, in float2 uv)
+        {
+            float2 p = floor(uv);
+            float2 f = frac(uv);
+            
+            // voronoi contribution
+            float4 va = 0.0;
+            float wt = 0.0;
+            for (int j = -1; j <= 1; j ++)
+            for (int i = -1; i <= 1; i ++)
+            {
+                float2 g = float2(i, j);
+                float4 o = hash4(p + g);
+                float2 r = g - f + o.xy;
+                float d = dot(r, r);
+                float w = exp(-5.0 * d);
+                float4 c = SAMPLE_TEXTURE2D(map, state, uv + o.zw);
+                va += w * c;
+                wt += w;
+            }
+            
+            // normalization
+            return va / wt;
+        }
         void SplatmapMix(float4 uvMainAndLM, float4 uvSplat01, float4 uvSplat23, inout half4 splatControl, out half weight, out half4 mixedDiffuse, out half4 defaultSmoothness, inout half3 mixedNormal)
         {
             half4 diffAlbedo[4];
             
-            diffAlbedo[0] = SAMPLE_TEXTURE2D(_Splat0, sampler_Splat0, uvSplat01.xy);
-            diffAlbedo[1] = SAMPLE_TEXTURE2D(_Splat1, sampler_Splat0, uvSplat01.zw);
-            diffAlbedo[2] = SAMPLE_TEXTURE2D(_Splat2, sampler_Splat0, uvSplat23.xy);
-            diffAlbedo[3] = SAMPLE_TEXTURE2D(_Splat3, sampler_Splat0, uvSplat23.zw);
+            diffAlbedo[0] = TextureNoTile(_Splat0, sampler_Splat0, uvSplat01.xy);
+            diffAlbedo[1] = TextureNoTile(_Splat1, sampler_Splat0, uvSplat01.zw);
+            diffAlbedo[2] = TextureNoTile(_Splat2, sampler_Splat0, uvSplat23.xy);
+            diffAlbedo[3] = TextureNoTile(_Splat3, sampler_Splat0, uvSplat23.zw);
             
             // This might be a bit of a gamble -- the assumption here is that if the diffuseMap has no
             // alpha channel, then diffAlbedo[n].a = 1.0 (and _DiffuseHasAlphaN = 0.0)
@@ -395,13 +425,13 @@
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
             float screenDepth16 = LinearEyeDepth(SHADERGRAPH_SAMPLE_SCENE_DEPTH(ase_screenPosNorm.xy), _ZBufferParams) - screenPos.w;
             
-            float smDisDepth = smoothstep(ctrl.z, ctrl.w, screenDepth16); 
+            float smDisDepth = smoothstep(ctrl.z, ctrl.w, screenDepth16);
             
             color.a = smDisDepth;
         #endif
-
+        
         color = MixGlobalFog(color, IN.positionWS);
-
+        
         return half4(color.rgb, color.a);
     }
     
