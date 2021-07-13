@@ -2,6 +2,7 @@
 #define UNITY_GRAPHFUNCTIONS_LW_INCLUDED
 
 #define SHADERGRAPH_SAMPLE_SCENE_DEPTH(uv) shadergraph_LWSampleSceneDepth(uv)
+#define SHADERGRAPH_SAMPLE_SCENE_DEPTH_TRANSPARENT(uv) shadergraph_LWSampleSceneDepthTrans(uv)
 #define SHADERGRAPH_SAMPLE_SCENE_COLOR(uv) shadergraph_LWSampleSceneColor(uv)
 #define SHADERGRAPH_BAKED_GI(positionWS, normalWS, uvStaticLightmap, uvDynamicLightmap, applyScaling) shadergraph_LWBakedGI(positionWS, normalWS, uvStaticLightmap, uvDynamicLightmap, applyScaling)
 #define SHADERGRAPH_REFLECTION_PROBE(viewDir, normalOS, lod) shadergraph_LWReflectionProbe(viewDir, normalOS, lod)
@@ -26,6 +27,16 @@ float shadergraph_LWSampleSceneDepth(float2 uv)
     return 0;
 #endif
 }
+
+float shadergraph_LWSampleSceneDepthTrans(float2 uv)
+{
+#if defined(REQUIRE_DEPTH_TEXTURE)
+    return SampleSceneDepthTrans(uv);
+#else
+    return 0;
+#endif
+}
+
 
 float3 shadergraph_LWSampleSceneColor(float2 uv)
 {

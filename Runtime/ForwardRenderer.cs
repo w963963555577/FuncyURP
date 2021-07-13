@@ -13,7 +13,7 @@ namespace UnityEngine.Rendering.Universal
         const string k_CreateCameraTextures = "Create Camera Texture";
 
         ColorGradingLutPass m_ColorGradingLutPass;
-        DepthOnlyPass m_DepthPrepass;
+        DepthOnlyPass m_DepthPrepass, m_DepthTransparentPrepass;
         MainLightShadowCasterPass m_MainLightShadowCasterPass;
         AdditionalLightsShadowCasterPass m_AdditionalLightsShadowCasterPass;
         ScreenSpaceShadowResolvePass m_ScreenSpaceShadowResolvePass;
@@ -42,7 +42,7 @@ namespace UnityEngine.Rendering.Universal
         RenderTargetHandle m_ActiveCameraDepthAttachment;
         RenderTargetHandle m_CameraColorAttachment;
         RenderTargetHandle m_CameraDepthAttachment;
-        RenderTargetHandle m_DepthTexture;
+        RenderTargetHandle m_DepthTexture, m_DepthTransparentTexture;
         RenderTargetHandle m_OpaqueColor;
         RenderTargetHandle m_AfterPostProcessColor;
         RenderTargetHandle m_ColorGradingLut;
@@ -74,7 +74,13 @@ namespace UnityEngine.Rendering.Universal
             // we inject the builtin passes in the before events.
             m_MainLightShadowCasterPass = new MainLightShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
             m_AdditionalLightsShadowCasterPass = new AdditionalLightsShadowCasterPass(RenderPassEvent.BeforeRenderingShadows);
+
             m_DepthPrepass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, RenderQueueRange.opaque, data.opaqueLayerMask);
+            RenderQueueRange depthTranspqrentRange = RenderQueueRange.all;
+            depthTranspqrentRange.lowerBound = 2500;
+            depthTranspqrentRange.upperBound = 2600;
+            m_DepthTransparentPrepass = new DepthOnlyPass(RenderPassEvent.BeforeRenderingPrepasses, depthTranspqrentRange, data.transparentLayerMask);
+
             m_ScreenSpaceShadowResolvePass = new ScreenSpaceShadowResolvePass(RenderPassEvent.BeforeRenderingPrepasses, m_ScreenspaceShadowsMaterial);
             m_ColorGradingLutPass = new ColorGradingLutPass(RenderPassEvent.BeforeRenderingPrepasses, data.postProcessData);
             m_RenderOpaqueForwardPass = new DrawObjectsPass("Render Opaques", true, RenderPassEvent.BeforeRenderingOpaques, RenderQueueRange.opaque, data.opaqueLayerMask, m_DefaultStencilState, stencilData.stencilReference);
@@ -102,7 +108,10 @@ namespace UnityEngine.Rendering.Universal
             // Samples (MSAA) depend on camera and pipeline
             m_CameraColorAttachment.Init("_CameraColorTexture");
             m_CameraDepthAttachment.Init("_CameraDepthAttachment");
+
             m_DepthTexture.Init("_CameraDepthTexture");
+            m_DepthTransparentTexture.Init("_CameraDepthTransparentTexture");
+
             m_OpaqueColor.Init("_CameraOpaqueTexture");
             m_AfterPostProcessColor.Init("_AfterPostProcessTexture");
             m_ColorGradingLut.Init("_InternalGradingLut");
@@ -249,6 +258,9 @@ namespace UnityEngine.Rendering.Universal
             {
                 m_DepthPrepass.Setup(cameraTargetDescriptor, m_DepthTexture);
                 EnqueuePass(m_DepthPrepass);
+
+                m_DepthTransparentPrepass.Setup(cameraTargetDescriptor, m_DepthTransparentTexture);
+                EnqueuePass(m_DepthTransparentPrepass);
             }
 
             if (generateColorGradingLUT)
