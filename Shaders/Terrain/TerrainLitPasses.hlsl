@@ -79,7 +79,7 @@
             SH = SampleSH(input.normalWS.xyz);
         #elif defined(ENABLE_TERRAIN_PERPIXEL_NORMAL)
             half3 viewDirWS = IN.viewDir;
-            float2 sampleCoords = (IN.uvMainAndLM.xy / _TerrainHeightmapRecipSize.zw + 0.5f) * _TerrainHeightmapRecipSize.xy;
+            half2 sampleCoords = (IN.uvMainAndLM.xy / _TerrainHeightmapRecipSize.zw + 0.5f) * _TerrainHeightmapRecipSize.xy;
             half3 normalWS = TransformObjectToWorldNormal(normalize(SAMPLE_TEXTURE2D(_TerrainNormalmapTexture, sampler_TerrainNormalmapTexture, sampleCoords).rgb * 2 - 1));
             half3 tangentWS = cross(GetObjectToWorldMatrix()._13_23_33, normalWS);
             input.normalWS = TransformTangentToWorld(normalTS, half3x3(-tangentWS, cross(normalWS, tangentWS), normalWS));
@@ -103,7 +103,7 @@
         #elif defined(MAIN_LIGHT_CALCULATE_SHADOWS)
             input.shadowCoord = TransformWorldToShadowCoord(input.positionWS);
         #else
-            input.shadowCoord = float4(0, 0, 0, 0);
+            input.shadowCoord = half4(0, 0, 0, 0);
         #endif
         
         input.fogCoord = IN.fogFactorAndVertexLight.x;
@@ -113,38 +113,42 @@
     }
     
     #ifndef TERRAIN_SPLAT_BASEPASS
-        float4 hash4(float2 p)
+        half4 hash4(half2 p)
         {
-            return frac(sin(float4(1.0 + dot(p, float2(37.0, 17.0)),
-            2.0 + dot(p, float2(11.0, 47.0)),
-            3.0 + dot(p, float2(41.0, 29.0)),
-            4.0 + dot(p, float2(23.0, 31.0)))) * 103.0);
+            return frac(sin(half4(1.0 + dot(p, half2(37.0, 17.0)),
+            2.0 + dot(p, half2(11.0, 47.0)),
+            3.0 + dot(p, half2(41.0, 29.0)),
+            4.0 + dot(p, half2(23.0, 31.0)))) * 103.0);
         }
-        half4 TextureNoTile(Texture2D < float4 > map, in SamplerState state, in float2 uv)
+        half4 TextureNoTile(Texture2D < float4 > map, in SamplerState state, in half2 uv)
         {
-            float2 p = floor(uv);
-            float2 f = frac(uv);
-            
-            // voronoi contribution
-            float4 va = 0.0;
-            float wt = 0.0;
-            for (int j = -1; j <= 1; j ++)
-            for (int i = -1; i <= 1; i ++)
-            {
-                float2 g = float2(i, j);
-                float4 o = hash4(p + g);
-                float2 r = g - f + o.xy;
-                float d = dot(r, r);
-                float w = exp(-5.0 * d);
-                float4 c = SAMPLE_TEXTURE2D(map, state, uv + o.zw);
-                va += w * c;
-                wt += w;
-            }
-            
-            // normalization
-            return va / wt;
+            #ifdef SHADER_API_MOBILE
+                return SAMPLE_TEXTURE2D(map, state, uv);
+            #else
+                half2 p = floor(uv);
+                half2 f = frac(uv);
+                
+                // voronoi contribution
+                half4 va = 0.0;
+                half wt = 0.0;
+                for (int j = -1; j <= 1; j ++)
+                for (int i = -1; i <= 1; i ++)
+                {
+                    half2 g = half2(i, j);
+                    half4 o = hash4(p + g);
+                    half2 r = g - f + o.xy;
+                    half d = dot(r, r);
+                    half w = exp(-5.0 * d);
+                    half4 c = SAMPLE_TEXTURE2D(map, state, uv + o.zw);
+                    va += w * c;
+                    wt += w;
+                }
+                
+                // normalization
+                return va / wt;
+            #endif
         }
-        void SplatmapMix(float4 uvMainAndLM, float4 uvSplat01, float4 uvSplat23, inout half4 splatControl, out half weight, out half4 mixedDiffuse, out half4 defaultSmoothness, inout half3 mixedNormal)
+        void SplatmapMix(half4 uvMainAndLM, half4 uvSplat01, half4 uvSplat23, inout half4 splatControl, out half weight, out half4 mixedDiffuse, out half4 defaultSmoothness, inout half3 mixedNormal)
         {
             half4 diffAlbedo[4];
             
@@ -174,10 +178,11 @@
             
             // Now that splatControl has changed, we can compute the final weight and normalize
             weight = dot(splatControl, 1.0h);
-            
+            /*
             #ifdef TERRAIN_SPLAT_ADDPASS
                 clip(weight <= 0.005h ? - 1.0h: 1.0h);
             #endif
+            */
             
             #ifndef _TERRAIN_BASEMAP_GEN
                 // Normalize weights before lighting and restore weights in final modifier functions so that the overal

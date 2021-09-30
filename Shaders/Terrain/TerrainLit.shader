@@ -79,11 +79,12 @@ Shader "Universal Render Pipeline/Terrain/Lit"
 
             // -------------------------------------
             // Universal Pipeline keywords
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
-            //#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
-            //#pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
-            #pragma multi_compile _ _SHADOWS_SOFT
+            //#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
+            #define _MAIN_LIGHT_SHADOWS 1
+            //#pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
+            #define _MAIN_LIGHT_SHADOWS_CASCADE 1
+            //#pragma multi_compile _ _SHADOWS_SOFT
+            #define _SHADOWS_SOFT 1
             #pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
 
             // -------------------------------------
