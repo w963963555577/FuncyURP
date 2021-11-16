@@ -205,7 +205,7 @@ namespace UnityEngine.Rendering.Universal
 
             // If camera requires depth and there's no depth pre-pass we create a depth texture that can be read later by effect requiring it.
             bool createDepthTexture = cameraData.requiresDepthTexture && !requiresDepthPrepass;
-            createDepthTexture |= (renderingData.cameraData.renderType == CameraRenderType.Base && !renderingData.resolveFinalTarget);
+            createDepthTexture |= (renderingData.cameraData.renderType == CameraRenderType.Base && !cameraData.resolveFinalTarget);
 
             // Configure all settings require to start a new camera stack (base camera only)
             if (cameraData.renderType == CameraRenderType.Base)
@@ -313,7 +313,7 @@ namespace UnityEngine.Rendering.Universal
             EnqueuePass(m_RenderTransparentForwardPass);
             EnqueuePass(m_OnRenderObjectCallbackPass);
 
-            bool lastCameraInTheStack = renderingData.resolveFinalTarget;
+            bool lastCameraInTheStack = cameraData.resolveFinalTarget;;
             bool hasCaptureActions = renderingData.cameraData.captureActions != null && lastCameraInTheStack;
             bool applyFinalPostProcessing = anyPostProcessing && lastCameraInTheStack &&
                                      renderingData.cameraData.antialiasing == AntialiasingMode.FastApproximateAntialiasing;
@@ -536,10 +536,13 @@ namespace UnityEngine.Rendering.Universal
         {
             // When rendering a camera stack we always create an intermediate render texture to composite camera results.
             // We create it upon rendering the Base camera.
-            if (renderingData.cameraData.renderType == CameraRenderType.Base && !renderingData.resolveFinalTarget)
-                return true;
 
             ref CameraData cameraData = ref renderingData.cameraData;
+
+            if (renderingData.cameraData.renderType == CameraRenderType.Base && !cameraData.resolveFinalTarget)
+                return true;
+
+            
             int msaaSamples = cameraData.cameraTargetDescriptor.msaaSamples;
             bool isStereoEnabled = renderingData.cameraData.isStereoEnabled;
             bool isScaledRender = !Mathf.Approximately(cameraData.renderScale, 1.0f) && !cameraData.isStereoEnabled;
