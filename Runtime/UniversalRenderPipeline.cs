@@ -98,8 +98,12 @@ namespace UnityEngine.Rendering.Universal
             PerFrameBuffer.unity_DeltaTime = Shader.PropertyToID("unity_DeltaTime");
             PerFrameBuffer._TimeParameters = Shader.PropertyToID("_TimeParameters");
 
+            // In QualitySettings.antiAliasing disabled state uses value 0, where in URP 1
+            int qualitySettingsMsaaSampleCount = QualitySettings.antiAliasing > 0 ? QualitySettings.antiAliasing : 1;
+            bool msaaSampleCountNeedsUpdate = qualitySettingsMsaaSampleCount != asset.msaaSampleCount;
+
             // Let engine know we have MSAA on for cases where we support MSAA backbuffer
-            if (QualitySettings.antiAliasing != asset.msaaSampleCount)
+            if (msaaSampleCountNeedsUpdate)
             {
                 QualitySettings.antiAliasing = asset.msaaSampleCount;
 #if ENABLE_VR && ENABLE_VR_MODULE
@@ -177,16 +181,19 @@ namespace UnityEngine.Rendering.Universal
             GraphicsSettings.lightsUseLinearIntensity = (QualitySettings.activeColorSpace == ColorSpace.Linear);
             GraphicsSettings.useScriptableRenderPipelineBatching = asset.useSRPBatcher;
             SetupPerFrameShaderConstants();
+
 #if ENABLE_VR && ENABLE_XR_MODULE
             SetupXRStates();
-            if(xrSkipRender)
-                return;
 #endif
 
             SortCameras(cameras);
             for (int i = 0; i < cameras.Length; ++i)
             {
                 var camera = cameras[i];
+#if ENABLE_VR && ENABLE_XR_MODULE
+                if (IsStereoEnabled(camera) && xrSkipRender)
+                    continue;
+#endif
                 if (IsGameCamera(camera))
                 {
                     RenderCameraStack(renderContext, camera);
@@ -228,6 +235,10 @@ namespace UnityEngine.Rendering.Universal
             }
 
             InitializeCameraData(camera, additionalCameraData, true, out var cameraData);
+#if ADAPTIVE_PERFORMANCE_2_0_0_OR_NEWER
+            if (asset.useAdaptivePerformance)
+                ApplyAdaptivePerformance(ref cameraData);
+#endif
             RenderSingleCamera(context, cameraData, cameraData.postProcessEnabled);
         }
 
@@ -273,6 +284,11 @@ namespace UnityEngine.Rendering.Universal
 
                 var cullResults = context.Cull(ref cullingParameters);
                 InitializeRenderingData(asset, ref cameraData, ref cullResults, anyPostProcessingEnabled, out var renderingData);
+
+#if ADAPTIVE_PERFORMANCE_2_0_0_OR_NEWER
+                if (asset.useAdaptivePerformance)
+                    ApplyAdaptivePerformance(ref renderingData);
+#endif
 
                 renderer.Setup(context, ref renderingData);
                 renderer.Execute(context, ref renderingData);
@@ -321,12 +337,18 @@ namespace UnityEngine.Rendering.Universal
                 if (!IsMultiPassStereoEnabled(baseCamera))
                 {
                     var baseCameraRendererType = baseCameraAdditionalData?.scriptableRenderer.GetType();
+                    bool shouldUpdateCameraStack = false;
 
                     for (int i = 0; i < cameraStack.Count; ++i)
                     {
                         Camera currCamera = cameraStack[i];
+                        if (currCamera == null)
+                        {
+                            shouldUpdateCameraStack = true;
+                            continue;
+                        }
 
-                        if (currCamera != null && currCamera.isActiveAndEnabled)
+                        if (currCamera.isActiveAndEnabled)
                         {
                             currCamera.TryGetComponent<UniversalAdditionalCameraData>(out var data);
 
@@ -350,6 +372,10 @@ namespace UnityEngine.Rendering.Universal
                             anyPostProcessingEnabled |= data.renderPostProcessing;
                             lastActiveOverlayCameraIndex = i;
                         }
+                    }
+                    if (shouldUpdateCameraStack)
+                    {
+                        baseCameraAdditionalData.UpdateCameraStack();
                     }
                 }
                 else
@@ -375,6 +401,10 @@ namespace UnityEngine.Rendering.Universal
 #endif
             UpdateVolumeFramework(baseCamera, baseCameraAdditionalData);
             InitializeCameraData(baseCamera, baseCameraAdditionalData, !isStackedRendering, out var baseCameraData);
+#if ADAPTIVE_PERFORMANCE_2_0_0_OR_NEWER
+            if (asset.useAdaptivePerformance)
+                ApplyAdaptivePerformance(ref baseCameraData);
+#endif
             RenderSingleCamera(context, baseCameraData, anyPostProcessingEnabled);
             EndCameraRendering(context, baseCamera);
 
@@ -898,14 +928,18 @@ namespace UnityEngine.Rendering.Universal
                 if (currLight == null)
                     break;
 
-                if (currLight == sunLight)
-                    return i;
-
-                // In case no shadow light is present we will return the brightest directional light
-                if (currVisibleLight.lightType == LightType.Directional && currLight.intensity > brightestLightIntensity)
+                if (currVisibleLight.lightType == LightType.Directional)
                 {
-                    brightestLightIntensity = currLight.intensity;
-                    brightestDirectionalLightIndex = i;
+                    // Sun source needs be a directional light
+                    if (currLight == sunLight)
+                        return i;
+
+                    // In case no sun light is present we will return the brightest directional light
+                    if (currLight.intensity > brightestLightIntensity)
+                    {
+                        brightestLightIntensity = currLight.intensity;
+                        brightestDirectionalLightIndex = i;
+                    }
                 }
             }
 
@@ -923,5 +957,71 @@ namespace UnityEngine.Rendering.Universal
             // Used when subtractive mode is selected
             Shader.SetGlobalVector(PerFrameBuffer._SubtractiveShadowColor, CoreUtils.ConvertSRGBToActiveColorSpace(RenderSettings.subtractiveShadowColor));
         }
+
+#if ADAPTIVE_PERFORMANCE_2_0_0_OR_NEWER
+        static void ApplyAdaptivePerformance(ref CameraData cameraData)
+        {
+            var noFrontToBackOpaqueFlags = SortingCriteria.SortingLayer | SortingCriteria.RenderQueue | SortingCriteria.OptimizeStateChanges | SortingCriteria.CanvasOrder;
+            if (AdaptivePerformance.AdaptivePerformanceRenderSettings.SkipFrontToBackSorting)
+                cameraData.defaultOpaqueSortFlags = noFrontToBackOpaqueFlags;
+
+            var MaxShadowDistanceMultiplier = AdaptivePerformance.AdaptivePerformanceRenderSettings.MaxShadowDistanceMultiplier;
+            cameraData.maxShadowDistance *= MaxShadowDistanceMultiplier;
+
+            var RenderScaleMultiplier = AdaptivePerformance.AdaptivePerformanceRenderSettings.RenderScaleMultiplier;
+            cameraData.renderScale *= RenderScaleMultiplier;
+
+            // TODO
+            if (!cameraData.isStereoEnabled)
+            {
+                cameraData.cameraTargetDescriptor.width = (int)(cameraData.camera.pixelWidth * cameraData.renderScale);
+                cameraData.cameraTargetDescriptor.height = (int)(cameraData.camera.pixelHeight * cameraData.renderScale);
+            }
+
+            var antialiasingQualityIndex = (int)cameraData.antialiasingQuality - AdaptivePerformance.AdaptivePerformanceRenderSettings.AntiAliasingQualityBias;
+            if (antialiasingQualityIndex < 0)
+                cameraData.antialiasing = AntialiasingMode.None;
+            cameraData.antialiasingQuality = (AntialiasingQuality)Mathf.Clamp(antialiasingQualityIndex, (int)AntialiasingQuality.Low, (int)AntialiasingQuality.High);
+        }
+        static void ApplyAdaptivePerformance(ref RenderingData renderingData)
+        {
+            if (AdaptivePerformance.AdaptivePerformanceRenderSettings.SkipDynamicBatching)
+                renderingData.supportsDynamicBatching = false;
+
+            var MainLightShadowmapResolutionMultiplier = AdaptivePerformance.AdaptivePerformanceRenderSettings.MainLightShadowmapResolutionMultiplier;
+            renderingData.shadowData.mainLightShadowmapWidth = (int)(renderingData.shadowData.mainLightShadowmapWidth * MainLightShadowmapResolutionMultiplier);
+            renderingData.shadowData.mainLightShadowmapHeight = (int)(renderingData.shadowData.mainLightShadowmapHeight * MainLightShadowmapResolutionMultiplier);
+
+            var MainLightShadowCascadesCountBias = AdaptivePerformance.AdaptivePerformanceRenderSettings.MainLightShadowCascadesCountBias;
+            renderingData.shadowData.mainLightShadowCascadesCount = Mathf.Clamp(renderingData.shadowData.mainLightShadowCascadesCount - MainLightShadowCascadesCountBias, 0, 4);
+
+            var shadowQualityIndex = AdaptivePerformance.AdaptivePerformanceRenderSettings.ShadowQualityBias;
+            for (int i = 0; i < shadowQualityIndex; i++)
+            {
+                if (renderingData.shadowData.supportsSoftShadows)
+                {
+                    renderingData.shadowData.supportsSoftShadows = false;
+                    continue;
+                }
+
+                if (renderingData.shadowData.supportsAdditionalLightShadows)
+                {
+                    renderingData.shadowData.supportsAdditionalLightShadows = false;
+                    continue;
+                }
+
+                if (renderingData.shadowData.supportsMainLightShadows)
+                {
+                    renderingData.shadowData.supportsMainLightShadows = false;
+                    continue;
+                }
+
+                break;
+            }
+
+            if (AdaptivePerformance.AdaptivePerformanceRenderSettings.LutBias >= 1 && renderingData.postProcessingData.lutSize == 32)
+                renderingData.postProcessingData.lutSize = 16;
+        }
+#endif
     }
 }

@@ -4,8 +4,10 @@ using UnityEngine.Scripting.APIUpdating;
 using UnityEditor;
 using UnityEditor.ProjectWindowCallback;
 using System.IO;
+using UnityEditorInternal;
 #endif
 using System.ComponentModel;
+using System.Linq;
 
 namespace UnityEngine.Rendering.LWRP
 {
@@ -190,6 +192,9 @@ namespace UnityEngine.Rendering.Universal
         [SerializeField] bool m_MixedLightingSupported = true;
         [SerializeField] PipelineDebugLevel m_DebugLevel = PipelineDebugLevel.Disabled;
 
+        // Adaptive performance settings
+        [SerializeField] bool m_UseAdaptivePerformance = false;
+
         // Post-processing settings
 #pragma warning disable 414 // 'field' is assigned but never used
         [SerializeField] PostProcessingFeatureSet m_PostProcessingFeatureSet = PostProcessingFeatureSet.Integrated;
@@ -293,9 +298,10 @@ namespace UnityEngine.Rendering.Universal
             {
                 if (m_EditorResourcesAsset != null && !m_EditorResourcesAsset.Equals(null))
                     return m_EditorResourcesAsset;
-
+                
                 string resourcePath = AssetDatabase.GUIDToAssetPath(editorResourcesGUID);
-                m_EditorResourcesAsset = AssetDatabase.LoadAssetAtPath<UniversalRenderPipelineEditorResources>(resourcePath);
+                var objs = InternalEditorUtility.LoadSerializedFileAndForget(resourcePath);
+                m_EditorResourcesAsset = objs != null && objs.Length > 0 ? objs.First() as UniversalRenderPipelineEditorResources : null;
                 return m_EditorResourcesAsset;
             }
         }
@@ -337,8 +343,20 @@ namespace UnityEngine.Rendering.Universal
 
         void DestroyRenderers()
         {
-            foreach (var renderer in m_Renderers)
-                renderer?.Dispose();
+            if (m_Renderers == null)
+                return;
+
+            for (int i = 0; i < m_Renderers.Length; i++)
+                DestroyRenderer(ref m_Renderers[i]);
+        }
+
+        void DestroyRenderer(ref ScriptableRenderer renderer)
+        {
+            if (renderer != null)
+            {
+                renderer.Dispose();
+                renderer = null;
+            }
         }
 
         protected override void OnValidate()
@@ -361,7 +379,11 @@ namespace UnityEngine.Rendering.Universal
 
         void CreateRenderers()
         {
-            m_Renderers = new ScriptableRenderer[m_RendererDataList.Length];
+            DestroyRenderers();
+
+            if (m_Renderers == null || m_Renderers.Length != m_RendererDataList.Length)
+                m_Renderers = new ScriptableRenderer[m_RendererDataList.Length];
+
             for (int i = 0; i < m_RendererDataList.Length; ++i)
             {
                 if (m_RendererDataList[i] != null)
@@ -414,6 +436,7 @@ namespace UnityEngine.Rendering.Universal
 
                 if (scriptableRendererData.isInvalidated || m_Renderers[m_DefaultRendererIndex] == null)
                 {
+                    DestroyRenderer(ref m_Renderers[m_DefaultRendererIndex]);
                     m_Renderers[m_DefaultRendererIndex] = scriptableRendererData.InternalCreateRenderer();
                 }
 
@@ -446,7 +469,10 @@ namespace UnityEngine.Rendering.Universal
             // This renderer data is outdated or invalid, we recreate the renderer
             // so we construct all render passes with the updated data
             if (m_RendererDataList[index].isInvalidated || m_Renderers[index] == null)
+            {
+                DestroyRenderer(ref m_Renderers[index]);
                 m_Renderers[index] = m_RendererDataList[index].InternalCreateRenderer();
+            }
 
             return m_Renderers[index];
         }
@@ -687,6 +713,16 @@ namespace UnityEngine.Rendering.Universal
             set { m_ColorGradingLutSize = Mathf.Clamp(value, k_MinLutSize, k_MaxLutSize); }
         }
 
+       /// <summary>
+       /// Set to true to allow Adaptive performance to modify graphics quality settings during runtime.
+       /// Only applicable when Adaptive performance package is available.
+       /// </summary>
+        public bool useAdaptivePerformance
+        {
+            get { return m_UseAdaptivePerformance; }
+            set { m_UseAdaptivePerformance = value; }
+        }
+
         public override Material defaultMaterial
         {
             get { return GetMaterial(DefaultMaterialType.Standard); }
@@ -742,6 +778,12 @@ namespace UnityEngine.Rendering.Universal
                     Shader defaultShader = scriptableRendererData.GetDefaultShader();
                     if (defaultShader != null)
                         return defaultShader;
+                }
+                
+                if (m_DefaultShader == null)
+                {
+                    string path = AssetDatabase.GUIDToAssetPath(ShaderUtils.GetShaderGUID(ShaderPathID.Lit));
+                    m_DefaultShader  = AssetDatabase.LoadAssetAtPath<Shader>(path);
                 }
 #endif
 
