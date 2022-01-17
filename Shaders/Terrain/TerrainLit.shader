@@ -55,6 +55,14 @@ Shader "Universal Render Pipeline/Terrain/Lit"
 
         Pass
         {
+            Stencil
+            {
+                Ref 10
+                Comp Always
+                Pass Replace
+                Fail Keep
+                ZFail Keep
+            }
             Name "ForwardLit"
             Tags { "LightMode" = "UniversalForward" }
             ZWrite On ZTest LEqual
