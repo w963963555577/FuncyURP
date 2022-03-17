@@ -55,7 +55,7 @@
         #endif
         
         half4 fogFactorAndVertexLight: TEXCOORD6; // x: fogFactor, yzw: vertex light
-        float3 positionWS: TEXCOORD7;
+        float4 positionWS_And_surfaceDepth: TEXCOORD7;
         #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
             float4 shadowCoord: TEXCOORD8;
         #endif
@@ -70,7 +70,7 @@
     {
         input = (InputData)0;
         
-        input.positionWS = IN.positionWS;
+        input.positionWS = IN.positionWS_And_surfaceDepth.xyz;
         half3 SH = half3(0, 0, 0);
         
         #if defined(_NORMALMAP) && !defined(ENABLE_TERRAIN_PERPIXEL_NORMAL)
@@ -327,7 +327,7 @@
         #endif
         o.fogFactorAndVertexLight.x = ComputeFogFactor(Attributes.positionCS.z);
         o.fogFactorAndVertexLight.yzw = VertexLighting(Attributes.positionWS, o.normal.xyz);
-        o.positionWS = Attributes.positionWS;
+        o.positionWS_And_surfaceDepth = float4(Attributes.positionWS, -Attributes.positionVS.z);
         o.clipPos = Attributes.positionCS;
         
         #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
@@ -366,6 +366,7 @@
     // Used in Standard Terrain shader
     half4 SplatmapFragment(Varyings IN): SV_TARGET
     {
+        half3 positionWS = IN.positionWS_And_surfaceDepth.xyz;
         #ifdef _ALPHATEST_ON
             ClipHoles(IN.uvMainAndLM.xy);
         #endif
@@ -428,14 +429,16 @@
             float4 screenPos = IN.screenPos;
             float4 ase_screenPosNorm = screenPos / screenPos.w;
             ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
-            float screenDepth16 = LinearEyeDepth(SHADERGRAPH_SAMPLE_SCENE_DEPTH(ase_screenPosNorm.xy), _ZBufferParams) - screenPos.w;
-            
-            float smDisDepth = smoothstep(ctrl.z, ctrl.w, screenDepth16);
+            float screenDepth = LinearEyeDepth(SHADERGRAPH_SAMPLE_SCENE_DEPTH(ase_screenPosNorm.xy), _ZBufferParams);
+            float surfaceDepth = IN.positionWS_And_surfaceDepth.w;
+            float cameraHeight = (_WorldSpaceCameraPos.y - positionWS.y);
+            float heightDepth = (((screenDepth / surfaceDepth) - 1.0) * cameraHeight);
+            float smDisDepth = smoothstep(ctrl.z, ctrl.w * 0.25, heightDepth);
             
             color.a = smDisDepth;
         #endif
         
-        color = MixGlobalFog(color, IN.positionWS);
+        color = MixGlobalFog(color, positionWS);
         
         return half4(color.rgb, color.a);
     }
