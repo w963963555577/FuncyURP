@@ -182,14 +182,7 @@ namespace UnityEditor.Rendering.Universal
                 foreach (var obj in materialEditorIn.targets)
                 {
                     var mat = (Material)obj;
-                    if (depthTexture.floatValue == 1.0f)
-                    {
-                        mat.renderQueue = 2549;
-                    }
-                    else
-                    {
-                        mat.renderQueue = 2000;
-                    }
+                    mat.renderQueue = 2002;
                     SetupMaterialKeywords(mat);
                                     }
             }

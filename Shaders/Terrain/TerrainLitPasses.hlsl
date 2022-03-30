@@ -16,7 +16,7 @@
     UNITY_INSTANCING_BUFFER_START(Terrain)
     UNITY_DEFINE_INSTANCED_PROP(float4, _TerrainPatchInstanceData)  // float4(xBase, yBase, skipScale, ~)
     UNITY_INSTANCING_BUFFER_END(Terrain)
-    
+    TEXTURE2D(_TerrainHolesTexture);
     #ifdef _ALPHATEST_ON
         TEXTURE2D(_TerrainHolesTexture);
         SAMPLER(sampler_TerrainHolesTexture);
@@ -60,11 +60,12 @@
             float4 shadowCoord: TEXCOORD8;
         #endif
         float4 clipPos: SV_POSITION;
-        #if defined(REQUIRE_DEPTH_TEXTURE)
-            float4 screenPos: TEXCOORD9;
-        #endif
+        
+        float4 screenPos: TEXCOORD9;
+        
         UNITY_VERTEX_OUTPUT_STEREO
     };
+    TEXTURE2D(_ForwardObjectsColorAndHeight);       SAMPLER(sampler_ForwardObjectsColorAndHeight);
     
     void InitializeInputData(Varyings IN, half3 normalTS, out InputData input)
     {
@@ -283,10 +284,10 @@
     ///////////////////////////////////////////////////////////////////////////////
     //                  Vertex and Fragment functions                            //
     ///////////////////////////////////////////////////////////////////////////////
-    #if defined(REQUIRE_DEPTH_TEXTURE)
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
-        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl"
-    #endif
+    
+    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl"
+    
     
     // Used in Standard Terrain shader
     Varyings SplatmapVert(Attributes v)
@@ -309,9 +310,9 @@
         #endif
         
         half3 viewDirWS = GetCameraPositionWS() - Attributes.positionWS;
-        #if !SHADER_HINT_NICE_QUALITY
-            viewDirWS = SafeNormalize(viewDirWS);
-        #endif
+        
+        viewDirWS = SafeNormalize(viewDirWS);
+        
         
         #if defined(_NORMALMAP) && !defined(ENABLE_TERRAIN_PERPIXEL_NORMAL)
             float4 vertexTangent = float4(cross(float3(0, 0, 1), v.normalOS), 1.0);
@@ -333,9 +334,9 @@
         #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
             o.shadowCoord = GetShadowCoord(Attributes);
         #endif
-        #if defined(REQUIRE_DEPTH_TEXTURE)
-            o.screenPos = ComputeScreenPos(Attributes.positionCS, _ProjectionParams.x);
-        #endif
+        
+        o.screenPos = ComputeScreenPos(Attributes.positionCS, _ProjectionParams.x);
+        
         return o;
     }
     
@@ -424,23 +425,39 @@
         
         SplatmapFinalColor(color, inputData.fogCoord);
         
-        #if defined(REQUIRE_DEPTH_TEXTURE)
-            half4 ctrl = _LightMapShadowHardware;
-            float4 screenPos = IN.screenPos;
-            float4 ase_screenPosNorm = screenPos / screenPos.w;
-            ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
-            float screenDepth = LinearEyeDepth(SHADERGRAPH_SAMPLE_SCENE_DEPTH(ase_screenPosNorm.xy), _ZBufferParams);
-            float surfaceDepth = IN.positionWS_And_surfaceDepth.w;
-            float cameraHeight = (_WorldSpaceCameraPos.y - positionWS.y);
-            float heightDepth = (((screenDepth / surfaceDepth) - 1.0) * cameraHeight);
-            float smDisDepth = smoothstep(ctrl.z, ctrl.w * 0.25, heightDepth);
-            
-            color.a = smDisDepth;
-        #endif
+        float4 screenPos = IN.screenPos;
+        float2 screenUV = screenPos.xyz / screenPos.w;
+        half4 ctrl = _LightMapShadowHardware;
         
+        half4 mrtForwardBuffer = SAMPLE_TEXTURE2D(_ForwardObjectsColorAndHeight, sampler_ForwardObjectsColorAndHeight, screenUV);
+        /*
+        half heightRatio = mrtForwardBuffer.a - positionWS.y + GetCameraPositionWS().y;
+        heightRatio = abs(heightRatio);
+        half blend = 1.0 - smoothstep(ctrl.z, ctrl.w * 0.2, heightRatio * 0.5);
+        */
+        half screenDepth = mrtForwardBuffer.a;
+        half surfaceDepth = IN.positionWS_And_surfaceDepth.w;
+        half cameraHeight = (GetCameraPositionWS().y - positionWS.y) + 20.0;
+        half heightDepth = (screenDepth * rcp(surfaceDepth) - 1.0) * cameraHeight;
+        half smDisDepth = smoothstep(ctrl.z, ctrl.w * 2.0, heightDepth);
+        half clearArea = 1.0 - min(1.0, (mrtForwardBuffer.r + mrtForwardBuffer.g + mrtForwardBuffer.b) * 10000.0);
+        color.rgb = lerp(mrtForwardBuffer.rgb, color.rgb, max(smDisDepth, clearArea));
         color = MixGlobalFog(color, positionWS);
         
-        return half4(color.rgb, color.a);
+        #if defined(REQUIRE_DEPTH_TEXTURE)
+            /*
+            float4 screenPos = IN.screenPos;
+            ase_screenPosNorm.z = (UNITY_NEAR_CLIP_VALUE >= 0) ? ase_screenPosNorm.z: ase_screenPosNorm.z * 0.5 + 0.5;
+            float4 depth = SHADERGRAPH_SAMPLE_SCENE_DEPTH(ase_screenPosNorm.xy);
+            float screenDepth = LinearEyeDepth(depth, _ZBufferParams);
+            float surfaceDepth = IN.positionWS_And_surfaceDepth.w;
+            float cameraHeight = (_WorldSpaceCameraPos.y - positionWS.y) + 20.0;
+            float heightDepth = (screenDepth * rcp(surfaceDepth) - 1.0) * cameraHeight;
+            float smDisDepth = smoothstep(ctrl.z, ctrl.w * 2.0, heightDepth);
+            */
+        #endif
+        
+        return color;
     }
     
     // Shadow pass

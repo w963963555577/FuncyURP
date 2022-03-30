@@ -51,7 +51,7 @@ Shader "Universal Render Pipeline/Terrain/Lit"
 
     SubShader
     {
-        Tags { "Queue" = "Geometry-100" "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "False"}
+        Tags { "Queue" = "Geometry" "RenderType" = "Opaque" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "False"}
 
         Pass
         {
@@ -63,22 +63,17 @@ Shader "Universal Render Pipeline/Terrain/Lit"
                 Fail Keep
                 ZFail Keep
             }
+
             Name "ForwardLit"
-            Tags { "LightMode" = "UniversalForward" }
+            Tags { "LightMode" = "TerrainMRT" }
             ZWrite On ZTest LEqual
-            Blend SrcAlpha OneMinusSrcAlpha
+            Blend One Zero
             HLSLPROGRAM
             // Required to compile gles 2.0 with standard srp library
             #pragma prefer_hlslcc gles
             #pragma exclude_renderers d3d11_9x
             #pragma target 3.0
-
-            #pragma shader_feature_local _EnableDepth
             
-            #if _EnableDepth
-                #define REQUIRE_DEPTH_TEXTURE 1
-            #endif
-
             #pragma vertex SplatmapVert
             #pragma fragment SplatmapFragment
 
@@ -142,32 +137,6 @@ Shader "Universal Render Pipeline/Terrain/Lit"
         {
             Name "DepthOnly"
             Tags{"LightMode" = "DepthOnly"}
-
-            ZWrite On
-            ColorMask 0
-
-            HLSLPROGRAM
-            // Required to compile gles 2.0 with standard srp library
-            #pragma prefer_hlslcc gles
-            #pragma exclude_renderers d3d11_9x
-            #pragma target 2.0
-
-            #pragma vertex DepthOnlyVertex
-            #pragma fragment DepthOnlyFragment
-
-            #pragma multi_compile_instancing
-            #pragma instancing_options assumeuniformscaling nomatrices nolightprobe nolightmap
-
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/TerrainLitInput.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/Shaders/Terrain/TerrainLitPasses.hlsl"
-            ENDHLSL
-        }
-
-        
-        Pass
-        {
-            Name "DepthTransparent"
-            Tags{"LightMode" = "DepthTransparent"}
 
             ZWrite On
             ColorMask 0
