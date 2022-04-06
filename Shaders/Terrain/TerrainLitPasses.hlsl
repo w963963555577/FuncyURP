@@ -437,9 +437,9 @@
         */
         half screenDepth = mrtForwardBuffer.a;
         half surfaceDepth = IN.positionWS_And_surfaceDepth.w;
-        half cameraHeight = (GetCameraPositionWS().y - positionWS.y) + 20.0;
+        half cameraHeight = (GetCameraPositionWS().y - positionWS.y) + 10.0;
         half heightDepth = (screenDepth * rcp(surfaceDepth) - 1.0) * cameraHeight;
-        half smDisDepth = smoothstep(ctrl.z, ctrl.w * 2.0, heightDepth);
+        half smDisDepth = smoothstep(ctrl.z, ctrl.w , heightDepth);
         half clearArea = 1.0 - min(1.0, (mrtForwardBuffer.r + mrtForwardBuffer.g + mrtForwardBuffer.b) * 10000.0);
         color.rgb = lerp(mrtForwardBuffer.rgb, color.rgb, max(smDisDepth, clearArea));
         color = MixGlobalFog(color, positionWS);
