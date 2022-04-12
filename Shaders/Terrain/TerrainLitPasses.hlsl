@@ -16,11 +16,11 @@
     UNITY_INSTANCING_BUFFER_START(Terrain)
     UNITY_DEFINE_INSTANCED_PROP(float4, _TerrainPatchInstanceData)  // float4(xBase, yBase, skipScale, ~)
     UNITY_INSTANCING_BUFFER_END(Terrain)
-    TEXTURE2D(_TerrainHolesTexture);
+    
     #ifdef _ALPHATEST_ON
+        
         TEXTURE2D(_TerrainHolesTexture);
         SAMPLER(sampler_TerrainHolesTexture);
-        
         void ClipHoles(float2 uv)
         {
             float hole = SAMPLE_TEXTURE2D(_TerrainHolesTexture, sampler_TerrainHolesTexture, uv).r;
@@ -426,7 +426,7 @@
         SplatmapFinalColor(color, inputData.fogCoord);
         
         float4 screenPos = IN.screenPos;
-        float2 screenUV = screenPos.xyz / screenPos.w;
+        float2 screenUV = screenPos.xy / screenPos.w;
         half4 ctrl = _LightMapShadowHardware;
         
         half4 mrtForwardBuffer = SAMPLE_TEXTURE2D(_ForwardObjectsColorAndHeight, sampler_ForwardObjectsColorAndHeight, screenUV);
@@ -439,7 +439,7 @@
         half surfaceDepth = IN.positionWS_And_surfaceDepth.w;
         half cameraHeight = (GetCameraPositionWS().y - positionWS.y) + 10.0;
         half heightDepth = (screenDepth * rcp(surfaceDepth) - 1.0) * cameraHeight;
-        half smDisDepth = smoothstep(ctrl.z, ctrl.w , heightDepth);
+        half smDisDepth = smoothstep(ctrl.z, ctrl.w, heightDepth);
         half clearArea = 1.0 - min(1.0, (mrtForwardBuffer.r + mrtForwardBuffer.g + mrtForwardBuffer.b) * 10000.0);
         color.rgb = lerp(mrtForwardBuffer.rgb, color.rgb, max(smDisDepth, clearArea));
         color = MixGlobalFog(color, positionWS);
