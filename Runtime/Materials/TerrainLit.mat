@@ -22,7 +22,7 @@ Material:
   m_PrefabAsset: {fileID: 0}
   m_Name: TerrainLit
   m_Shader: {fileID: 4800000, guid: 69c1f799e772cb6438f56c23efccb782, type: 3}
-  m_ShaderKeywords: _EnableDepth _TERRAIN_INSTANCED_PERPIXEL_NORMAL
+  m_ShaderKeywords: ENABLE_NORMAL_INTENSITY _EnableDepth _TERRAIN_INSTANCED_PERPIXEL_NORMAL
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
@@ -129,6 +129,9 @@ Material:
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     m_Floats:
+    - ENABLE_NORMAL_INTENSITY: 1
+    - SMOOTHNESS_TEXTURE: 0
+    - _AlphaCutoff: 0.5
     - _BumpScale: 1
     - _Cutoff: 0.5
     - _DetailNormalMapScale: 1
@@ -136,30 +139,34 @@ Material:
     - _EnableDepth: 1
     - _EnableHeightBlend: 0
     - _EnableInstancedPerPixelNormal: 1
-    - _EnvironmentReflections: 1
+    - _EnvironmentReflections: 0
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _HeightTransition: 1
     - _Metallic: 0
-    - _Metallic0: 0
+    - _Metallic0: 1
     - _Metallic1: 0
     - _Metallic2: 0
     - _Metallic3: 0
     - _Mode: 0
+    - _NormalIntensity0: 1
+    - _NormalIntensity1: 1
+    - _NormalIntensity2: 1
+    - _NormalIntensity3: 1
     - _NumLayersCount: 4
-    - _OcclusionStrength: 1
+    - _OcclusionStrength: 0
     - _Parallax: 0.02
     - _Smoothness0: 1
     - _Smoothness1: 1
     - _Smoothness2: 1
     - _Smoothness3: 1
     - _SmoothnessTextureChannel: 0
-    - _SpecularHighlights: 1
+    - _SpecularHighlights: 0.02
     - _SrcBlend: 1
     - _TERRAIN_INSTANCED_PERPIXEL_NORMAL: 0
     - _UVSec: 0
     - _WorkflowMode: 1
-    - _ZWrite: 1
+    - _ZWrite: 0
     m_Colors:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _Color: {r: 1, g: 1, b: 1, a: 1}
