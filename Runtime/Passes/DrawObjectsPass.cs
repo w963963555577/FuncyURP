@@ -55,22 +55,24 @@ namespace UnityEngine.Rendering.Universal.Internal
                 cmd.Clear();
 
                 Camera camera = renderingData.cameraData.camera;
+                
                 var sortFlags = (m_IsOpaque) ? renderingData.cameraData.defaultOpaqueSortFlags : SortingCriteria.CommonTransparent;
                 var drawSettings = CreateDrawingSettings(m_ShaderTagIdList, ref renderingData, sortFlags);
                 var filterSettings = m_FilteringSettings;
-
+                
                 #if UNITY_EDITOR
                 // When rendering the preview camera, we want the layer mask to be forced to Everything
                 if (renderingData.cameraData.isPreviewCamera)
                 {
                     filterSettings.layerMask = -1;
                 }
-                #endif
-
-                context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref filterSettings, ref m_RenderStateBlock);
-
-                // Render objects that did not match any shader pass with error shader
-                RenderingUtils.RenderObjectsWithError(context, ref renderingData.cullResults, camera, filterSettings, SortingCriteria.None);
+#endif
+                if (renderingData.cameraData.renderType == CameraRenderType.Overlay)
+                {
+                    context.DrawRenderers(renderingData.cullResults, ref drawSettings, ref filterSettings, ref m_RenderStateBlock);
+                    // Render objects that did not match any shader pass with error shader
+                    RenderingUtils.RenderObjectsWithError(context, ref renderingData.cullResults, camera, filterSettings, SortingCriteria.None);
+                }
             }
             context.ExecuteCommandBuffer(cmd);
             CommandBufferPool.Release(cmd);
